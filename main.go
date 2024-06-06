@@ -100,8 +100,15 @@ type Model struct {
 }
 
 // fetchHTML fetches the HTML content from a given URL.
-func fetchHTML(teamKey string) (*goquery.Document, error) {
-	url := fmt.Sprintf("https://www.fangraphs.com/leaders-legacy.aspx/major-league?pos=all&stats=bat&lg=all&type=0&season=2024&month=0&season1=2024&ind=0&team=%d&qual=1", teams[teamKey])
+func fetchHTML(teamKey string, year string, batting bool) (*goquery.Document, error) {
+	var statType string
+	if batting {
+		statType = "bat"
+	} else {
+		statType = "fld"
+	}
+
+	url := fmt.Sprintf("https://www.fangraphs.com/leaders-legacy.aspx/major-league?pos=all&stats=%s&lg=all&type=0&season=%s&month=0&season1=%s&ind=0&team=%d&qual=1&page=1_100", statType, year, year, teams[teamKey])
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch URL: %v", err)
@@ -148,9 +155,9 @@ func MustBeInt(s string) int {
 	return i
 }
 
-func parseSticks(rows [][]string) []Stick {
+func parseSticks(batRows [][]string, fldRows [][]string) []Stick {
 	var sticks []Stick
-	for _, row := range rows {
+	for _, row := range batRows {
 		stick := Stick{
 			Name:                  row[1],
 			PlateAppearances:      MustBeInt(row[4]),
@@ -170,6 +177,16 @@ func parseSticks(rows [][]string) []Stick {
 		}
 		sticks = append(sticks, stick)
 	}
+
+	// parse errors from fielding data
+	for idx, stick := range sticks {
+		for _, row := range fldRows {
+			if row[1] == stick.Name {
+				sticks[idx].Errors += MustBeInt(row[8])
+			}
+		}
+	}
+
 	return sticks
 }
 
@@ -294,32 +311,52 @@ func (m Model) View() string {
 
 func main() {
 
+	// TODO: parse command line arguments for team and year
+
 	teamKey := "DET"
-	doc, err := fetchHTML(teamKey)
+	year := "2024"
+
+	battingDoc, err := fetchHTML(teamKey, year, true)
 	if err != nil {
-		fmt.Printf("Error fetching HTML: %v\n", err)
+		fmt.Printf("Error fetching batting HTML: %v\n", err)
 		return
 	}
-
-	tableHeaders, tableRows, err := extractTableData(doc)
+	battingHeaders, battingRows, err := extractTableData(battingDoc)
 	if err != nil {
 		fmt.Printf("Error extracting table data: %v\n", err)
 		return
 	}
 
-	var tableData [][]string
-	tableData = append(tableData, tableHeaders)
-	tableData = append(tableData, tableRows...)
+	fieldingDoc, err := fetchHTML(teamKey, year, false)
+	if err != nil {
+		fmt.Printf("Error fetching fielding HTML: %v\n", err)
+		return
+	}
+	fieldingHeaders, fieldingRows, err := extractTableData(fieldingDoc)
+	if err != nil {
+		fmt.Printf("Error extracting table data: %v\n", err)
+		return
+	}
 
-	csvFile := "table.csv"
-	if err := writeCSV(tableData, csvFile); err != nil {
+	var battingData [][]string
+	battingData = append(battingData, battingHeaders)
+	battingData = append(battingData, battingRows...)
+	batCSVFile := fmt.Sprintf("%s-%s-bat.csv", teamKey, year)
+	if err := writeCSV(battingData, batCSVFile); err != nil {
 		fmt.Printf("Error writing CSV file: %v\n", err)
 		return
 	}
 
-	// fmt.Printf("%s data successfully written to %s\n", teamKey, csvFile)
+	var fieldingData [][]string
+	fieldingData = append(fieldingData, fieldingHeaders)
+	fieldingData = append(fieldingData, fieldingRows...)
+	fldCSVFile := fmt.Sprintf("%s-%s-fld.csv", teamKey, year)
+	if err := writeCSV(fieldingData, fldCSVFile); err != nil {
+		fmt.Printf("Error writing CSV file: %v\n", err)
+		return
+	}
 
-	sticks := parseSticks(tableRows)
+	sticks := parseSticks(battingRows, fieldingRows)
 
 	p := tea.NewProgram(NewModel(sticks))
 	if _, err := p.Run(); err != nil {
