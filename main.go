@@ -10,8 +10,42 @@ import (
 	"github.com/PuerkitoBio/goquery"
 )
 
+var teams map[string]int = map[string]int{
+	"ARI": 15,
+	"ATL": 16,
+	"BAL": 2,
+	"BOS": 3,
+	"CHC": 17,
+	"CHW": 4,
+	"CIN": 18,
+	"CLE": 5,
+	"COL": 19,
+	"DET": 6,
+	"HOU": 21,
+	"KCR": 7,
+	"LAA": 1,
+	"LAD": 22,
+	"MIA": 20,
+	"MIL": 23,
+	"MIN": 8,
+	"NYM": 25,
+	"NYY": 9,
+	"OAK": 10,
+	"PHI": 26,
+	"PIT": 27,
+	"SDP": 29,
+	"SEA": 11,
+	"SFG": 30,
+	"STL": 28,
+	"TBR": 12,
+	"TEX": 13,
+	"TOR": 14,
+	"WSN": 24,
+}
+
 // fetchHTML fetches the HTML content from a given URL.
-func fetchHTML(url string) (*goquery.Document, error) {
+func fetchHTML(teamKey string) (*goquery.Document, error) {
+	url := fmt.Sprintf("https://www.fangraphs.com/leaders-legacy.aspx/major-league?pos=all&stats=bat&lg=all&type=0&season=2024&month=0&season1=2024&ind=0&team=%d&qual=1", teams[teamKey])
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch URL: %v", err)
@@ -70,8 +104,8 @@ func writeCSV(data [][]string, filename string) error {
 }
 
 func main() {
-	url := "https://www.fangraphs.com/leaders-legacy.aspx/major-league?pos=all&stats=bat&lg=all&type=0&season=2024&month=0&season1=2024&ind=0&team=6&qual=1"
-	doc, err := fetchHTML(url)
+	teamKey := "DET"
+	doc, err := fetchHTML(teamKey)
 	if err != nil {
 		fmt.Printf("Error fetching HTML: %v\n", err)
 		return
@@ -93,5 +127,5 @@ func main() {
 		return
 	}
 
-	fmt.Printf("Table data successfully written to %s\n", csvFile)
+	fmt.Printf("%s data successfully written to %s\n", teamKey, csvFile)
 }
