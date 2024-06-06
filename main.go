@@ -97,6 +97,8 @@ func (s Stick) NegativePoints() int {
 
 type Model struct {
 	statTable table.Model
+	team      string
+	year      string
 }
 
 // fetchHTML fetches the HTML content from a given URL.
@@ -255,13 +257,13 @@ func makeRow(stick Stick) table.Row {
 
 }
 
-func NewModel(sticks []Stick) Model {
+func NewModel(sticks []Stick, year string, team string) Model {
 	tableRows := make([]table.Row, len(sticks))
 	for i, stick := range sticks {
 		tableRows[i] = makeRow(stick)
 	}
 
-	return Model{
+	model := Model{
 		statTable: table.New([]table.Column{
 			table.NewColumn(columnKeyName, "Name", 16).WithStyle(lipgloss.NewStyle().Align(lipgloss.Left)),
 			table.NewColumn(columnKeyPlateAppearances, "PA", 6),
@@ -271,7 +273,14 @@ func NewModel(sticks []Stick) Model {
 			table.NewColumn(columnKeyNegPointsPerPA, "-P/PA", 6),
 			table.NewColumn(columnKeyPoints, "P", 6),
 			table.NewColumn(columnKeyPointsPerPA, "P/PA", 6).WithStyle(lipgloss.NewStyle().Bold(true)),
-		}).WithRows(tableRows).BorderRounded().WithBaseStyle(styleBase).WithPageSize(12).SortByDesc(columnKeyPointsPerPA).Focused(true)}
+		}).WithRows(tableRows).BorderRounded().WithBaseStyle(styleBase).WithPageSize(12).SortByDesc(columnKeyPointsPerPA).Focused(true),
+		team: team,
+		year: year,
+	}
+
+	model.updateFooter()
+
+	return model
 }
 
 func (m Model) Init() tea.Cmd {
@@ -287,6 +296,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.statTable, cmd = m.statTable.Update(msg)
 	cmds = append(cmds, cmd)
 
+	m.updateFooter()
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.Type {
@@ -296,6 +307,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, tea.Batch(cmds...)
+}
+
+func (m *Model) updateFooter() {
+	// highlightedRow := m.statTable.HighlightedRow()
+
+	footerText := fmt.Sprintf(
+		"Viewing %s %s - Pg. %d/%d", m.team, m.year,
+		m.statTable.CurrentPage(),
+		m.statTable.MaxPages(),
+	)
+
+	m.statTable = m.statTable.WithStaticFooter(footerText)
 }
 
 func (m Model) View() string {
@@ -312,6 +335,12 @@ func (m Model) View() string {
 func main() {
 
 	// TODO: parse command line arguments for team and year
+	// TODO: add leaders sub command to show leaderboard. Filters by team(s) and year(s)
+	// TODO: add command line flag for cache directory location
+	// TODO: add a player search sub command to search for players
+	// TODO: add teams sub command to list available team keys
+	// TODO: add option to not include fielding errors
+	// TODO: add option to output to CSV
 
 	teamKey := "DET"
 	year := "2024"
@@ -338,6 +367,9 @@ func main() {
 		return
 	}
 
+	// TODO: store CSVs in cache directory and use them instead of re-fetching, except always re-fetch the current year
+	// TODO: decide whether to cache the underlying stats or just the table data or both
+
 	var battingData [][]string
 	battingData = append(battingData, battingHeaders)
 	battingData = append(battingData, battingRows...)
@@ -358,7 +390,7 @@ func main() {
 
 	sticks := parseSticks(battingRows, fieldingRows)
 
-	p := tea.NewProgram(NewModel(sticks))
+	p := tea.NewProgram(NewModel(sticks, year, teamKey))
 	if _, err := p.Run(); err != nil {
 		log.Fatal(err)
 	}
