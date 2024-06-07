@@ -354,7 +354,7 @@ func NewModel(sticks []Stick, year string, team string) Model {
 
 	model := Model{
 		statTable: table.New([]table.Column{
-			table.NewColumn(columnKeyName, "Name", 16).WithStyle(lipgloss.NewStyle().Align(lipgloss.Left)),
+			table.NewColumn(columnKeyName, "Name", 20).WithStyle(lipgloss.NewStyle().Align(lipgloss.Left)),
 			table.NewColumn(columnKeyPlateAppearances, "PA", 6),
 			table.NewColumn(columnKeyPosPoints, "+P", 6),
 			table.NewColumn(columnKeyPosPointsPerPA, "+P/PA", 6),
@@ -362,7 +362,13 @@ func NewModel(sticks []Stick, year string, team string) Model {
 			table.NewColumn(columnKeyNegPointsPerPA, "-P/PA", 6),
 			table.NewColumn(columnKeyPoints, "P", 6),
 			table.NewColumn(columnKeyPointsPerPA, "P/PA", 6).WithStyle(lipgloss.NewStyle().Bold(true)),
-		}).WithRows(tableRows).BorderRounded().WithBaseStyle(styleBase).WithPageSize(12).SortByDesc(columnKeyPointsPerPA).Focused(true),
+		}).
+			WithRows(tableRows).
+			BorderRounded().
+			WithBaseStyle(styleBase).
+			WithPageSize(12).
+			SortByDesc(columnKeyPointsPerPA).
+			Focused(true),
 		team: team,
 		year: year,
 	}
@@ -390,7 +396,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.Type {
-		case tea.KeyCtrlC:
+		case tea.KeyCtrlC, tea.KeyEsc:
 			return m, tea.Quit
 		}
 	}
@@ -414,7 +420,7 @@ func (m Model) View() string {
 	// selected := m.statTable.HighlightedRow().Data[0].(string)
 	view := lipgloss.JoinVertical(
 		lipgloss.Left,
-		styleSubtle.Render("Press ctrl+c to quit."),
+		styleSubtle.Render("Press ctrl+c or esc to quit."),
 		m.statTable.View(),
 	) + "\n"
 
@@ -435,6 +441,7 @@ func main() {
 	year := "2023"
 
 	// check if year is valid
+	// TODO: take into account when teams entered the league
 	yearInt := MustBeInt(year)
 	currentYear := time.Now().Year()
 	if yearInt > time.Now().Year() || yearInt <= 1900 {
