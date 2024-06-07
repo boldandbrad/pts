@@ -41,7 +41,12 @@ var Teams map[string]int = map[string]int{
 	"WSN": 24,
 }
 
-// fetchHTML fetches the HTML content from a given URL.
+func ValidateTeamKey(teamKey string) bool {
+	_, ok := Teams[strings.ToUpper(teamKey)]
+	return ok
+}
+
+// FetchHTML fetches HTML content from fangraphs for a given team and year.
 func FetchHTML(teamKey string, year string, batting bool) (*goquery.Document, error) {
 	var statType string
 	if batting {
@@ -50,7 +55,7 @@ func FetchHTML(teamKey string, year string, batting bool) (*goquery.Document, er
 		statType = "fld"
 	}
 
-	url := fmt.Sprintf("https://www.fangraphs.com/leaders-legacy.aspx/major-league?pos=all&stats=%s&lg=all&type=0&season=%s&month=0&season1=%s&ind=0&team=%d&qual=1&page=1_100", statType, year, year, Teams[teamKey])
+	url := fmt.Sprintf("https://www.fangraphs.com/leaders-legacy.aspx/major-league?pos=all&stats=%s&lg=all&type=0&season=%s&month=0&season1=%s&ind=0&team=%d&qual=1&page=1_100", statType, year, year, Teams[strings.ToUpper(teamKey)])
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch URL: %v", err)
@@ -65,7 +70,7 @@ func FetchHTML(teamKey string, year string, batting bool) (*goquery.Document, er
 	return doc, nil
 }
 
-// extractTableData extracts the data from the main HTML table.
+// ExtractTableData extracts the data from the main HTML table.
 func ExtractTableData(doc *goquery.Document) (DataTable, error) {
 	// Extract headers
 	var headers []string

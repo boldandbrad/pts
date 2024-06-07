@@ -22,7 +22,7 @@ var teamCmd = &cobra.Command{
 			return cmd.Help()
 		}
 
-		pick(args[0])
+		team(args[0])
 		return nil
 	},
 }
@@ -71,8 +71,13 @@ func parseSticks(batRows [][]string, fldRows [][]string) []structs.Stick {
 	return sticks
 }
 
-func pick(teamKey string) {
-	// TODO: convert teamKey to uppercase and check that it is a valid team
+func team(teamKey string) {
+	// check if team key is valid
+	ok := utils.ValidateTeamKey(teamKey)
+	if !ok {
+		fmt.Printf("Error: invalid team key: %s\n", teamKey)
+		return
+	}
 
 	// check if year is valid
 	// TODO: take into account when teams entered the league
