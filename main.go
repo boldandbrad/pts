@@ -8,12 +8,15 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/PuerkitoBio/goquery"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/evertras/bubble-table/table"
 )
+
+var cacheDir string = "cache"
 
 var teams map[string]int = map[string]int{
 	"ARI": 15,
@@ -67,6 +70,11 @@ var (
 			BorderForeground(lipgloss.Color("#89b4fa")).
 			Align(lipgloss.Right)
 )
+
+type DataTable struct {
+	headers []string
+	rows    [][]string
+}
 
 type Stick struct {
 	Name                  string
@@ -126,7 +134,7 @@ func fetchHTML(teamKey string, year string, batting bool) (*goquery.Document, er
 }
 
 // extractTableData extracts the data from the main HTML table.
-func extractTableData(doc *goquery.Document) ([]string, [][]string, error) {
+func extractTableData(doc *goquery.Document) (DataTable, error) {
 	// Extract headers
 	var headers []string
 	doc.Find(".rgMasterTable thead tr").Last().Find("th").Each(func(i int, s *goquery.Selection) {
@@ -146,13 +154,18 @@ func extractTableData(doc *goquery.Document) ([]string, [][]string, error) {
 		rows = append(rows, rowData)
 	})
 
-	return headers, rows, nil
+	dataTable := DataTable{
+		headers: headers,
+		rows:    rows,
+	}
+
+	return dataTable, nil
 }
 
 func MustBeInt(s string) int {
 	i, err := strconv.Atoi(s)
 	if err != nil {
-		panic(err)
+		return 0
 	}
 	return i
 }
@@ -209,6 +222,82 @@ func writeCSV(data [][]string, filename string) error {
 		}
 	}
 	return nil
+}
+
+func readCSV(filename string) ([][]string, error) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open CSV file: %v", err)
+	}
+	defer file.Close()
+
+	reader := csv.NewReader(file)
+	reader.FieldsPerRecord = -1
+	data, err := reader.ReadAll()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read CSV data: %v", err)
+	}
+	return data, nil
+}
+
+func writeStatCache(team string, year string, batDataTable DataTable, fldDataTable DataTable) error {
+	// create cache directory if it doesn't exist
+	if _, err := os.Stat(cacheDir); os.IsNotExist(err) {
+		if err := os.Mkdir(cacheDir, 0755); err != nil {
+			fmt.Printf("Error creating cache directory: %v\n", err)
+			return err
+		}
+	}
+
+	var battingData [][]string
+	battingData = append(battingData, batDataTable.headers)
+	battingData = append(battingData, batDataTable.rows...)
+	batCSVFile := fmt.Sprintf("%s/%s-%s-bat.csv", cacheDir, team, year)
+	if err := writeCSV(battingData, batCSVFile); err != nil {
+		fmt.Printf("Error writing cache file: %v\n", err)
+	}
+
+	var fieldingData [][]string
+	fieldingData = append(fieldingData, fldDataTable.headers)
+	fieldingData = append(fieldingData, fldDataTable.rows...)
+	fldCSVFile := fmt.Sprintf("%s/%s-%s-fld.csv", cacheDir, team, year)
+	if err := writeCSV(fieldingData, fldCSVFile); err != nil {
+		fmt.Printf("Error writing cache file: %v\n", err)
+	}
+	return nil
+}
+
+func readStatCache(team string, year string) (DataTable, DataTable, error) {
+	if MustBeInt(year) == time.Now().Year() {
+		return DataTable{}, DataTable{}, fmt.Errorf("ignoring cache for current year")
+	}
+
+	// no cache to read if cache directory doesn't exist
+	if _, err := os.Stat(cacheDir); os.IsNotExist(err) {
+		return DataTable{}, DataTable{}, fmt.Errorf("cache directory does not exist: %v", err)
+	}
+
+	batCSVFile := fmt.Sprintf("%s/%s-%s-bat.csv", cacheDir, team, year)
+	batData, err := readCSV(batCSVFile)
+	if err != nil || len(batData) == 0 {
+		return DataTable{}, DataTable{}, fmt.Errorf("failed to read cache file: %v", err)
+	}
+	batDataTable := DataTable{
+		headers: batData[0],
+		rows:    batData[1:],
+	}
+
+	fldCSVFile := fmt.Sprintf("%s/%s-%s-fld.csv", cacheDir, team, year)
+	fldData, err := readCSV(fldCSVFile)
+	if err != nil || len(fldData) == 0 {
+		return DataTable{}, DataTable{}, fmt.Errorf("failed to read cache file: %v", err)
+	}
+	fldDataTable := DataTable{
+		headers: fldData[0],
+		rows:    fldData[1:],
+	}
+
+	return batDataTable, fldDataTable, nil
 }
 
 func makeRow(stick Stick) table.Row {
@@ -343,52 +432,49 @@ func main() {
 	// TODO: add option to output to CSV
 
 	teamKey := "DET"
-	year := "2024"
+	year := "2023"
 
-	battingDoc, err := fetchHTML(teamKey, year, true)
-	if err != nil {
-		fmt.Printf("Error fetching batting HTML: %v\n", err)
-		return
-	}
-	battingHeaders, battingRows, err := extractTableData(battingDoc)
-	if err != nil {
-		fmt.Printf("Error extracting table data: %v\n", err)
+	// check if year is valid
+	yearInt := MustBeInt(year)
+	currentYear := time.Now().Year()
+	if yearInt > time.Now().Year() || yearInt <= 1900 {
+		fmt.Printf("Error: year must be between 1901 and %d\n", currentYear)
 		return
 	}
 
-	fieldingDoc, err := fetchHTML(teamKey, year, false)
-	if err != nil {
-		fmt.Printf("Error fetching fielding HTML: %v\n", err)
-		return
-	}
-	fieldingHeaders, fieldingRows, err := extractTableData(fieldingDoc)
-	if err != nil {
-		fmt.Printf("Error extracting table data: %v\n", err)
-		return
+	// use cache instead of re-fetching, except always re-fetch the current year
+	battingDataTable, fieldingDataTable, err := readStatCache(teamKey, year)
+	// TODO: find way to cleanly skip cache check if current year
+	if err != nil || yearInt == currentYear {
+		// fetch data if it didn't exist in cache
+		battingDoc, err := fetchHTML(teamKey, year, true)
+		if err != nil {
+			fmt.Printf("Error fetching batting HTML: %v\n", err)
+			return
+		}
+		battingDataTable, err = extractTableData(battingDoc)
+		if err != nil {
+			fmt.Printf("Error extracting batting data from HTML: %v\n", err)
+			return
+		}
+
+		fieldingDoc, err := fetchHTML(teamKey, year, false)
+		if err != nil {
+			fmt.Printf("Error fetching fielding HTML: %v\n", err)
+			return
+		}
+		fieldingDataTable, err = extractTableData(fieldingDoc)
+		if err != nil {
+			fmt.Printf("Error extracting fielding data from HTML: %v\n", err)
+			return
+		}
+
+		// write fetched data to cache
+		// TODO: decide whether to cache the underlying stats or just the table data or both
+		writeStatCache(teamKey, year, battingDataTable, fieldingDataTable)
 	}
 
-	// TODO: store CSVs in cache directory and use them instead of re-fetching, except always re-fetch the current year
-	// TODO: decide whether to cache the underlying stats or just the table data or both
-
-	var battingData [][]string
-	battingData = append(battingData, battingHeaders)
-	battingData = append(battingData, battingRows...)
-	batCSVFile := fmt.Sprintf("%s-%s-bat.csv", teamKey, year)
-	if err := writeCSV(battingData, batCSVFile); err != nil {
-		fmt.Printf("Error writing CSV file: %v\n", err)
-		return
-	}
-
-	var fieldingData [][]string
-	fieldingData = append(fieldingData, fieldingHeaders)
-	fieldingData = append(fieldingData, fieldingRows...)
-	fldCSVFile := fmt.Sprintf("%s-%s-fld.csv", teamKey, year)
-	if err := writeCSV(fieldingData, fldCSVFile); err != nil {
-		fmt.Printf("Error writing CSV file: %v\n", err)
-		return
-	}
-
-	sticks := parseSticks(battingRows, fieldingRows)
+	sticks := parseSticks(battingDataTable.rows, fieldingDataTable.rows)
 
 	p := tea.NewProgram(NewModel(sticks, year, teamKey))
 	if _, err := p.Run(); err != nil {
