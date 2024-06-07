@@ -6,9 +6,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var version = "0.0.1-alpha.1"
+
 var rootCmd = &cobra.Command{
-	Use:   "pts",
-	Short: "Pick the Stick points calculator",
+	Use:     "pts",
+	Version: version,
+	Short:   "Pick the Stick points calculator",
 	Long: `pts is a Pick the Stick points calculator for Major League Baseball.
 	It allows you to easily compare players to make the best pick in your draft.`,
 }
