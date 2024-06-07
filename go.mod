@@ -1,4 +1,4 @@
-module boldandbrad/pts
+module github.com/boldandbrad/pts
 
 go 1.22.3
 
