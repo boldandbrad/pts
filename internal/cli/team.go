@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/boldandbrad/pts/internal/pkg/structs"
@@ -29,11 +30,13 @@ var teamCmd = &cobra.Command{
 
 var (
 	Year string
+	// QualifiedOnly bool
 )
 
 func init() {
 	rootCmd.AddCommand(teamCmd)
 	teamCmd.Flags().StringVarP(&Year, "season", "s", fmt.Sprint(time.Now().Year()), "Season to view stats for")
+	// teamCmd.Flags().BoolVarP(&QualifiedOnly, "qualified", "q", false, "Only show qualified players")
 }
 
 func parseSticks(batRows [][]string, fldRows [][]string) []structs.Stick {
@@ -72,14 +75,15 @@ func parseSticks(batRows [][]string, fldRows [][]string) []structs.Stick {
 }
 
 func team(teamKey string) {
-	// check if team key is valid
+	// check if provided team key is valid
+	teamKey = strings.ToUpper(teamKey)
 	ok := utils.ValidateTeamKey(teamKey)
 	if !ok {
 		fmt.Printf("Error: invalid team key: %s\n", teamKey)
 		return
 	}
 
-	// check if year is valid
+	// check if provided year is valid
 	// TODO: take into account when teams entered the league
 	yearInt := utils.MustBeInt(Year)
 	currentYear := time.Now().Year()
@@ -88,38 +92,28 @@ func team(teamKey string) {
 		return
 	}
 
-	// use cache instead of re-fetching, except always re-fetch the current year
-	battingDataTable, fieldingDataTable, err := utils.ReadStatCache(teamKey, Year)
-	// TODO: find way to cleanly skip cache check if current year
-	if err != nil || yearInt == currentYear {
-		// fetch data if it didn't exist in cache
-		battingDoc, err := utils.FetchHTML(teamKey, Year, true)
-		if err != nil {
-			fmt.Printf("Error fetching batting HTML: %v\n", err)
-			return
-		}
-		battingDataTable, err = utils.ExtractTableData(battingDoc)
-		if err != nil {
-			fmt.Printf("Error extracting batting data from HTML: %v\n", err)
-			return
-		}
+	var battingDataTable utils.DataTable
+	var fieldingDataTable utils.DataTable
+	var err error = nil
 
-		fieldingDoc, err := utils.FetchHTML(teamKey, Year, false)
+	// use cache instead of re-fetching, except always re-fetch the current year
+	if yearInt != currentYear {
+		battingDataTable, fieldingDataTable, err = utils.ReadTeamCache(teamKey, Year)
+	}
+	// fetch data if it didn't exist in cache or current year
+	if yearInt == currentYear || err != nil {
+		battingDataTable, fieldingDataTable, err = utils.FetchTeamStats(teamKey, Year)
 		if err != nil {
-			fmt.Printf("Error fetching fielding HTML: %v\n", err)
-			return
-		}
-		fieldingDataTable, err = utils.ExtractTableData(fieldingDoc)
-		if err != nil {
-			fmt.Printf("Error extracting fielding data from HTML: %v\n", err)
+			fmt.Printf("Error: %v\n", err)
 			return
 		}
 
 		// write fetched data to cache
 		// TODO: decide whether to cache the underlying stats or just the table data or both
-		utils.WriteStatCache(teamKey, Year, battingDataTable, fieldingDataTable)
+		utils.WriteTeamCache(teamKey, Year, battingDataTable, fieldingDataTable)
 	}
 
+	// parse data into sticks
 	sticks := parseSticks(battingDataTable.Rows, fieldingDataTable.Rows)
 
 	p := tea.NewProgram(tui.NewModel(sticks, Year, teamKey))

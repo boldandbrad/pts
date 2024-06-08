@@ -82,9 +82,9 @@ func makeRow(stick structs.Stick) table.Row {
 }
 
 func NewModel(sticks []structs.Stick, year string, team string) Model {
-	tableRows := make([]table.Row, len(sticks))
-	for i, stick := range sticks {
-		tableRows[i] = makeRow(stick)
+	var tableRows []table.Row
+	for _, stick := range sticks {
+		tableRows = append(tableRows, makeRow(stick))
 	}
 
 	model := Model{

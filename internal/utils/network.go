@@ -46,8 +46,8 @@ func ValidateTeamKey(teamKey string) bool {
 	return ok
 }
 
-// FetchHTML fetches HTML content from fangraphs for a given team and year.
-func FetchHTML(teamKey string, year string, batting bool) (*goquery.Document, error) {
+// fetchHTML fetches HTML content from fangraphs for a given team and year.
+func fetchHTML(teamKey string, year string, batting bool) (*goquery.Document, error) {
 	var statType string
 	if batting {
 		statType = "bat"
@@ -70,8 +70,8 @@ func FetchHTML(teamKey string, year string, batting bool) (*goquery.Document, er
 	return doc, nil
 }
 
-// ExtractTableData extracts the data from the main HTML table.
-func ExtractTableData(doc *goquery.Document) (DataTable, error) {
+// extractTableData extracts the data from the main HTML table.
+func extractTableData(doc *goquery.Document) (DataTable, error) {
 	// Extract headers
 	var headers []string
 	doc.Find(".rgMasterTable thead tr").Last().Find("th").Each(func(i int, s *goquery.Selection) {
@@ -97,4 +97,26 @@ func ExtractTableData(doc *goquery.Document) (DataTable, error) {
 	}
 
 	return dataTable, nil
+}
+
+func FetchTeamStats(teamKey string, year string) (DataTable, DataTable, error) {
+	battingDoc, err := fetchHTML(teamKey, year, true)
+	if err != nil {
+		return DataTable{}, DataTable{}, fmt.Errorf("error fetching batting HTML: %v", err)
+	}
+	battingDataTable, err := extractTableData(battingDoc)
+	if err != nil {
+		return DataTable{}, DataTable{}, fmt.Errorf("error extracting batting data from HTML: %v", err)
+	}
+
+	fieldingDoc, err := fetchHTML(teamKey, year, false)
+	if err != nil {
+		return DataTable{}, DataTable{}, fmt.Errorf("error fetching fielding HTML: %v", err)
+	}
+	fieldingDataTable, err := extractTableData(fieldingDoc)
+	if err != nil {
+		return DataTable{}, DataTable{}, fmt.Errorf("error extracting fielding data from HTML: %v", err)
+	}
+
+	return battingDataTable, fieldingDataTable, nil
 }

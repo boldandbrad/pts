@@ -22,7 +22,7 @@ func MustBeInt(s string) int {
 	return i
 }
 
-func WriteStatCache(team string, year string, batDataTable DataTable, fldDataTable DataTable) error {
+func WriteTeamCache(team string, year string, batDataTable DataTable, fldDataTable DataTable) error {
 	// create cache directory if it doesn't exist
 	if _, err := os.Stat(cacheDir); os.IsNotExist(err) {
 		if err := os.Mkdir(cacheDir, 0755); err != nil {
@@ -49,7 +49,7 @@ func WriteStatCache(team string, year string, batDataTable DataTable, fldDataTab
 	return nil
 }
 
-func ReadStatCache(team string, year string) (DataTable, DataTable, error) {
+func ReadTeamCache(team string, year string) (DataTable, DataTable, error) {
 	if MustBeInt(year) == time.Now().Year() {
 		return DataTable{}, DataTable{}, fmt.Errorf("ignoring cache for current year")
 	}
