@@ -59,7 +59,9 @@ func parseSticks(batRows [][]string, fldRows [][]string) []structs.Stick {
 			GroundIntoDoublePlays: utils.MustBeInt(row[19]),
 			Errors:                0,
 		}
-		sticks = append(sticks, stick)
+		if stick.PlateAppearances > 0 {
+			sticks = append(sticks, stick)
+		}
 	}
 
 	// parse errors from fielding data
