@@ -22,6 +22,10 @@ func MustBeInt(s string) int {
 	return i
 }
 
+func getCacheFileName(team string, year string, statType string) string {
+	return fmt.Sprintf("%s/%s-%s-%s.csv", cacheDir, team, year, statType)
+}
+
 func WriteTeamCache(team string, year string, batDataTable DataTable, fldDataTable DataTable) error {
 	// create cache directory if it doesn't exist
 	if _, err := os.Stat(cacheDir); os.IsNotExist(err) {
@@ -34,7 +38,7 @@ func WriteTeamCache(team string, year string, batDataTable DataTable, fldDataTab
 	var battingData [][]string
 	battingData = append(battingData, batDataTable.Headers)
 	battingData = append(battingData, batDataTable.Rows...)
-	batCSVFile := fmt.Sprintf("%s/%s-%s-bat.csv", cacheDir, team, year)
+	batCSVFile := getCacheFileName(team, year, "bat")
 	if err := WriteCSV(battingData, batCSVFile); err != nil {
 		fmt.Printf("Error writing cache file: %v\n", err)
 	}
@@ -42,7 +46,7 @@ func WriteTeamCache(team string, year string, batDataTable DataTable, fldDataTab
 	var fieldingData [][]string
 	fieldingData = append(fieldingData, fldDataTable.Headers)
 	fieldingData = append(fieldingData, fldDataTable.Rows...)
-	fldCSVFile := fmt.Sprintf("%s/%s-%s-fld.csv", cacheDir, team, year)
+	fldCSVFile := getCacheFileName(team, year, "fld")
 	if err := WriteCSV(fieldingData, fldCSVFile); err != nil {
 		fmt.Printf("Error writing cache file: %v\n", err)
 	}
@@ -59,7 +63,7 @@ func ReadTeamCache(team string, year string) (DataTable, DataTable, error) {
 		return DataTable{}, DataTable{}, fmt.Errorf("cache directory does not exist: %v", err)
 	}
 
-	batCSVFile := fmt.Sprintf("%s/%s-%s-bat.csv", cacheDir, team, year)
+	batCSVFile := getCacheFileName(team, year, "bat")
 	batData, err := ReadCSV(batCSVFile)
 	if err != nil || len(batData) == 0 {
 		return DataTable{}, DataTable{}, fmt.Errorf("failed to read cache file: %v", err)
@@ -69,7 +73,7 @@ func ReadTeamCache(team string, year string) (DataTable, DataTable, error) {
 		Rows:    batData[1:],
 	}
 
-	fldCSVFile := fmt.Sprintf("%s/%s-%s-fld.csv", cacheDir, team, year)
+	fldCSVFile := getCacheFileName(team, year, "fld")
 	fldData, err := ReadCSV(fldCSVFile)
 	if err != nil || len(fldData) == 0 {
 		return DataTable{}, DataTable{}, fmt.Errorf("failed to read cache file: %v", err)

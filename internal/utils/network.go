@@ -41,6 +41,8 @@ var Teams map[string]int = map[string]int{
 	"WSN": 24,
 }
 
+var FangraphsUrl = "https://fangraphs.com/leaders/major-league"
+
 func ValidateTeamKey(teamKey string) bool {
 	_, ok := Teams[strings.ToUpper(teamKey)]
 	return ok
@@ -55,7 +57,7 @@ func fetchHTML(teamKey string, year string, batting bool) (*goquery.Document, er
 		statType = "fld"
 	}
 
-	url := fmt.Sprintf("https://www.fangraphs.com/leaders-legacy.aspx/major-league?pos=all&stats=%s&lg=all&type=0&season=%s&month=0&season1=%s&ind=0&team=%d&qual=1&page=1_100", statType, year, year, Teams[strings.ToUpper(teamKey)])
+	url := fmt.Sprintf("%s?pos=all&stats=%s&season=%s&season1=%s&team=%d&qual=0&type=0&pageitems=100&startdate=&enddate=", FangraphsUrl, statType, year, year, Teams[strings.ToUpper(teamKey)])
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch URL: %v", err)
@@ -74,13 +76,13 @@ func fetchHTML(teamKey string, year string, batting bool) (*goquery.Document, er
 func extractTableData(doc *goquery.Document) (DataTable, error) {
 	// Extract headers
 	var headers []string
-	doc.Find(".rgMasterTable thead tr").Last().Find("th").Each(func(i int, s *goquery.Selection) {
+	doc.Find(".table-fixed table thead tr").Last().Find("th").Each(func(i int, s *goquery.Selection) {
 		headers = append(headers, s.Text())
 	})
 
 	// Extract rows
 	var rows [][]string
-	doc.Find(".rgMasterTable tbody tr").Each(func(i int, row *goquery.Selection) {
+	doc.Find(".table-fixed table tbody tr").Each(func(i int, row *goquery.Selection) {
 		rowData := make([]string, len(headers))
 
 		row.Find("td").Each(func(j int, cell *goquery.Selection) {

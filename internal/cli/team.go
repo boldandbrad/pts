@@ -35,7 +35,7 @@ var (
 
 func init() {
 	rootCmd.AddCommand(teamCmd)
-	teamCmd.Flags().StringVarP(&Year, "season", "s", fmt.Sprint(time.Now().Year()), "Season to view stats for")
+	teamCmd.Flags().StringVarP(&Year, "year", "y", fmt.Sprint(time.Now().Year()), "Season to view stats for. Ex: 2025")
 	// teamCmd.Flags().BoolVarP(&QualifiedOnly, "qualified", "q", false, "Only show qualified players")
 }
 
@@ -44,19 +44,19 @@ func parseSticks(batRows [][]string, fldRows [][]string) []structs.Stick {
 	for _, row := range batRows {
 		stick := structs.Stick{
 			Name:                  row[1],
-			PlateAppearances:      utils.MustBeInt(row[4]),
-			Singles:               utils.MustBeInt(row[6]),
-			Doubles:               utils.MustBeInt(row[7]),
-			Triples:               utils.MustBeInt(row[8]),
-			HomeRuns:              utils.MustBeInt(row[9]),
-			RunsScored:            utils.MustBeInt(row[10]),
-			RunsBattedIn:          utils.MustBeInt(row[11]),
-			StolenBases:           utils.MustBeInt(row[19]),
-			Walks:                 utils.MustBeInt(row[12]),
-			HitByPitches:          utils.MustBeInt(row[15]),
-			SacBunts:              utils.MustBeInt(row[17]),
-			StrikeOuts:            utils.MustBeInt(row[14]),
-			GroundIntoDoublePlays: utils.MustBeInt(row[18]),
+			PlateAppearances:      utils.MustBeInt(row[5]),
+			Singles:               utils.MustBeInt(row[7]),
+			Doubles:               utils.MustBeInt(row[8]),
+			Triples:               utils.MustBeInt(row[9]),
+			HomeRuns:              utils.MustBeInt(row[10]),
+			RunsScored:            utils.MustBeInt(row[11]),
+			RunsBattedIn:          utils.MustBeInt(row[12]),
+			StolenBases:           utils.MustBeInt(row[20]),
+			Walks:                 utils.MustBeInt(row[13]),
+			HitByPitches:          utils.MustBeInt(row[16]),
+			SacBunts:              utils.MustBeInt(row[18]),
+			StrikeOuts:            utils.MustBeInt(row[15]),
+			GroundIntoDoublePlays: utils.MustBeInt(row[19]),
 			Errors:                0,
 		}
 		sticks = append(sticks, stick)
@@ -66,7 +66,7 @@ func parseSticks(batRows [][]string, fldRows [][]string) []structs.Stick {
 	for idx, stick := range sticks {
 		for _, row := range fldRows {
 			if row[1] == stick.Name {
-				sticks[idx].Errors += utils.MustBeInt(row[8])
+				sticks[idx].Errors += utils.MustBeInt(row[10])
 			}
 		}
 	}
