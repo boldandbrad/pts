@@ -11,6 +11,7 @@ import (
 
 const (
 	columnKeyName             = "name"
+	columnKeyTeam             = "team"
 	columnKeyPlateAppearances = "pa"
 	columnKeyPosPoints        = "pospts"
 	columnKeyPosPointsPerPA   = "posptsperpa"
@@ -33,11 +34,13 @@ type Model struct {
 	statTable table.Model
 	team      string
 	year      string
+	minPAs    string
 }
 
 func makeRow(stick structs.Stick) table.Row {
 	return table.NewRow(table.RowData{
 		columnKeyName: stick.Name,
+		columnKeyTeam: stick.Team,
 		columnKeyPlateAppearances: func() string {
 			if stick.PlateAppearances > 0 {
 				return fmt.Sprintf("%d", stick.PlateAppearances)
@@ -81,15 +84,22 @@ func makeRow(stick structs.Stick) table.Row {
 
 }
 
-func NewModel(sticks []structs.Stick, year string, team string) Model {
+func NewModel(sticks []structs.Stick, year string, team string, minPAs int16) Model {
 	var tableRows []table.Row
 	for _, stick := range sticks {
 		tableRows = append(tableRows, makeRow(stick))
+	}
+	var qualifiedMsg = ""
+	if minPAs < 0 {
+		qualifiedMsg = " (Qualified)"
+	} else {
+		qualifiedMsg = fmt.Sprintf(" (%d+ PAs)", minPAs)
 	}
 
 	model := Model{
 		statTable: table.New([]table.Column{
 			table.NewColumn(columnKeyName, "Name", 20).WithStyle(lipgloss.NewStyle().Align(lipgloss.Left)),
+			table.NewColumn(columnKeyTeam, "Team", 6).WithStyle(lipgloss.NewStyle().Align(lipgloss.Left)),
 			table.NewColumn(columnKeyPlateAppearances, "PA", 6),
 			table.NewColumn(columnKeyPosPoints, "+P", 6),
 			table.NewColumn(columnKeyPosPointsPerPA, "+P/PA", 6),
@@ -104,8 +114,9 @@ func NewModel(sticks []structs.Stick, year string, team string) Model {
 			WithPageSize(12).
 			SortByDesc(columnKeyPointsPerPA).
 			Focused(true),
-		team: team,
-		year: year,
+		team:   team,
+		year:   year,
+		minPAs: qualifiedMsg,
 	}
 
 	model.updateFooter()
@@ -143,7 +154,7 @@ func (m *Model) updateFooter() {
 	// highlightedRow := m.statTable.HighlightedRow()
 
 	footerText := fmt.Sprintf(
-		"Viewing %s %s - Pg. %d/%d", m.team, m.year,
+		"Viewing %s %s%s - Pg. %d/%d", m.team, m.year, m.minPAs,
 		m.statTable.CurrentPage(),
 		m.statTable.MaxPages(),
 	)

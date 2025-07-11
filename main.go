@@ -6,7 +6,7 @@ import (
 
 func main() {
 
-	// TODO: add leaders sub command to show leaderboard. Filters by team(s) and year(s)
+	// TODO: add pick sub command to show today's lineup for the given team to pick from
 	// TODO: add command line flag and env variable for cache directory location
 	// TODO: add a player search sub command to search for players
 	// TODO: add teams sub command to list available team keys

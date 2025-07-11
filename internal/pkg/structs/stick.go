@@ -2,6 +2,7 @@ package structs
 
 type Stick struct {
 	Name                  string
+	Team                  string
 	GamesPlayed           int
 	PlateAppearances      int
 	Singles               int

@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/boldandbrad/pts/internal/pkg/structs"
+
 	"github.com/PuerkitoBio/goquery"
 )
 
@@ -49,7 +51,7 @@ func ValidateTeamKey(teamKey string) bool {
 }
 
 // fetchHTML fetches HTML content from fangraphs for a given team and year.
-func fetchHTML(teamKey string, year string, batting bool) (*goquery.Document, error) {
+func fetchHTML(team string, year string, minPAs int16, batting bool) (*goquery.Document, error) {
 	var statType string
 	if batting {
 		statType = "bat"
@@ -57,7 +59,22 @@ func fetchHTML(teamKey string, year string, batting bool) (*goquery.Document, er
 		statType = "fld"
 	}
 
-	url := fmt.Sprintf("%s?pos=all&stats=%s&season=%s&season1=%s&team=%d&qual=0&type=0&pageitems=100&startdate=&enddate=", FangraphsUrl, statType, year, year, Teams[strings.ToUpper(teamKey)])
+	var qualified string
+	if minPAs < 0 {
+		qualified = "y"
+	} else {
+		qualified = fmt.Sprintf("%d", minPAs)
+	}
+
+	if team == "all" {
+		team = "0"
+	} else {
+		team = fmt.Sprintf("%d", Teams[strings.ToUpper(team)])
+	}
+
+	pageitems := "2000000000"
+
+	url := fmt.Sprintf("%s?pos=all&stats=%s&season=%s&season1=%s&team=%s&qual=%s&type=0&pageitems=%s&startdate=&enddate=", FangraphsUrl, statType, year, year, team, qualified, pageitems)
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch URL: %v", err)
@@ -101,8 +118,8 @@ func extractTableData(doc *goquery.Document) (DataTable, error) {
 	return dataTable, nil
 }
 
-func FetchTeamStats(teamKey string, year string) (DataTable, DataTable, error) {
-	battingDoc, err := fetchHTML(teamKey, year, true)
+func FetchTeamStats(teamKey string, year string, minPAs int16) (DataTable, DataTable, error) {
+	battingDoc, err := fetchHTML(teamKey, year, minPAs, true)
 	if err != nil {
 		return DataTable{}, DataTable{}, fmt.Errorf("error fetching batting HTML: %v", err)
 	}
@@ -111,7 +128,7 @@ func FetchTeamStats(teamKey string, year string) (DataTable, DataTable, error) {
 		return DataTable{}, DataTable{}, fmt.Errorf("error extracting batting data from HTML: %v", err)
 	}
 
-	fieldingDoc, err := fetchHTML(teamKey, year, false)
+	fieldingDoc, err := fetchHTML(teamKey, year, minPAs, false)
 	if err != nil {
 		return DataTable{}, DataTable{}, fmt.Errorf("error fetching fielding HTML: %v", err)
 	}
@@ -121,4 +138,42 @@ func FetchTeamStats(teamKey string, year string) (DataTable, DataTable, error) {
 	}
 
 	return battingDataTable, fieldingDataTable, nil
+}
+
+func ParseSticks(batRows [][]string, fldRows [][]string) []structs.Stick {
+	var sticks []structs.Stick
+	for _, row := range batRows {
+		stick := structs.Stick{
+			Name:                  row[1],
+			Team:                  row[2],
+			PlateAppearances:      MustBeInt(row[5]),
+			Singles:               MustBeInt(row[7]),
+			Doubles:               MustBeInt(row[8]),
+			Triples:               MustBeInt(row[9]),
+			HomeRuns:              MustBeInt(row[10]),
+			RunsScored:            MustBeInt(row[11]),
+			RunsBattedIn:          MustBeInt(row[12]),
+			StolenBases:           MustBeInt(row[20]),
+			Walks:                 MustBeInt(row[13]),
+			HitByPitches:          MustBeInt(row[16]),
+			SacBunts:              MustBeInt(row[18]),
+			StrikeOuts:            MustBeInt(row[15]),
+			GroundIntoDoublePlays: MustBeInt(row[19]),
+			Errors:                0,
+		}
+		if stick.PlateAppearances > 0 {
+			sticks = append(sticks, stick)
+		}
+	}
+
+	// parse errors from fielding data
+	for idx, stick := range sticks {
+		for _, row := range fldRows {
+			if row[1] == stick.Name {
+				sticks[idx].Errors += MustBeInt(row[10])
+			}
+		}
+	}
+
+	return sticks
 }

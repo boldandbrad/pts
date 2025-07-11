@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/boldandbrad/pts/internal/pkg/structs"
 	"github.com/boldandbrad/pts/internal/tui"
 	"github.com/boldandbrad/pts/internal/utils"
 
@@ -14,69 +13,28 @@ import (
 	"github.com/spf13/cobra"
 )
 
+type TeamOpts struct {
+	year string
+}
+
+var teamOpts = TeamOpts{}
 var teamCmd = &cobra.Command{
 	Use:   "team [flags] teamKey",
 	Short: "Show PtS stats for all players on the given team.",
 	Long:  `Show PtS stats for all players on the given team.`,
+	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if len(args) == 0 || len(args) > 1 {
-			return cmd.Help()
-		}
-
-		team(args[0])
+		execTeam(args[0])
 		return nil
 	},
 }
 
-var (
-	Year string
-	// QualifiedOnly bool
-)
-
 func init() {
 	rootCmd.AddCommand(teamCmd)
-	teamCmd.Flags().StringVarP(&Year, "year", "y", fmt.Sprint(time.Now().Year()), "Season to view stats for. Ex: 2025")
-	// teamCmd.Flags().BoolVarP(&QualifiedOnly, "qualified", "q", false, "Only show qualified players")
+	teamCmd.Flags().StringVarP(&teamOpts.year, "year", "y", fmt.Sprint(time.Now().Year()), "Season to view stats for. Ex: 2025")
 }
 
-func parseSticks(batRows [][]string, fldRows [][]string) []structs.Stick {
-	var sticks []structs.Stick
-	for _, row := range batRows {
-		stick := structs.Stick{
-			Name:                  row[1],
-			PlateAppearances:      utils.MustBeInt(row[5]),
-			Singles:               utils.MustBeInt(row[7]),
-			Doubles:               utils.MustBeInt(row[8]),
-			Triples:               utils.MustBeInt(row[9]),
-			HomeRuns:              utils.MustBeInt(row[10]),
-			RunsScored:            utils.MustBeInt(row[11]),
-			RunsBattedIn:          utils.MustBeInt(row[12]),
-			StolenBases:           utils.MustBeInt(row[20]),
-			Walks:                 utils.MustBeInt(row[13]),
-			HitByPitches:          utils.MustBeInt(row[16]),
-			SacBunts:              utils.MustBeInt(row[18]),
-			StrikeOuts:            utils.MustBeInt(row[15]),
-			GroundIntoDoublePlays: utils.MustBeInt(row[19]),
-			Errors:                0,
-		}
-		if stick.PlateAppearances > 0 {
-			sticks = append(sticks, stick)
-		}
-	}
-
-	// parse errors from fielding data
-	for idx, stick := range sticks {
-		for _, row := range fldRows {
-			if row[1] == stick.Name {
-				sticks[idx].Errors += utils.MustBeInt(row[10])
-			}
-		}
-	}
-
-	return sticks
-}
-
-func team(teamKey string) {
+func execTeam(teamKey string) {
 	// check if provided team key is valid
 	teamKey = strings.ToUpper(teamKey)
 	ok := utils.ValidateTeamKey(teamKey)
@@ -87,12 +45,14 @@ func team(teamKey string) {
 
 	// check if provided year is valid
 	// TODO: take into account when teams entered the league
-	yearInt := utils.MustBeInt(Year)
+	yearInt := utils.MustBeInt(teamOpts.year)
 	currentYear := time.Now().Year()
 	if yearInt > time.Now().Year() || yearInt <= 1900 {
 		fmt.Printf("Error: year must be between 1901 and %d\n", currentYear)
 		return
 	}
+
+	var minPAs int16 = 0
 
 	var battingDataTable utils.DataTable
 	var fieldingDataTable utils.DataTable
@@ -100,11 +60,11 @@ func team(teamKey string) {
 
 	// use cache instead of re-fetching, except always re-fetch the current year
 	if yearInt != currentYear {
-		battingDataTable, fieldingDataTable, err = utils.ReadTeamCache(teamKey, Year)
+		battingDataTable, fieldingDataTable, err = utils.ReadTeamCache(teamKey, teamOpts.year)
 	}
 	// fetch data if it didn't exist in cache or current year
 	if yearInt == currentYear || err != nil {
-		battingDataTable, fieldingDataTable, err = utils.FetchTeamStats(teamKey, Year)
+		battingDataTable, fieldingDataTable, err = utils.FetchTeamStats(teamKey, teamOpts.year, minPAs)
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 			return
@@ -112,13 +72,13 @@ func team(teamKey string) {
 
 		// write fetched data to cache
 		// TODO: decide whether to cache the underlying stats or just the table data or both
-		utils.WriteTeamCache(teamKey, Year, battingDataTable, fieldingDataTable)
+		utils.WriteTeamCache(teamKey, teamOpts.year, battingDataTable, fieldingDataTable)
 	}
 
 	// parse data into sticks
-	sticks := parseSticks(battingDataTable.Rows, fieldingDataTable.Rows)
+	sticks := utils.ParseSticks(battingDataTable.Rows, fieldingDataTable.Rows)
 
-	p := tea.NewProgram(tui.NewModel(sticks, Year, teamKey))
+	p := tea.NewProgram(tui.NewModel(sticks, teamOpts.year, teamKey, minPAs))
 	if _, err := p.Run(); err != nil {
 		log.Fatal(err)
 	}
